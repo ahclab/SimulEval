@@ -10,6 +10,7 @@ import sys
 import logging
 import importlib
 from simuleval.agents import Agent
+from simuleval.segmenters import Segmenter
 
 logger = logging.getLogger('simuleval.util.agent_builder')
 
@@ -94,6 +95,73 @@ def find_agent_cls(args):
         agent_name = agent_cls.__name__
 
     return agent_name, agent_cls
+
+
+def find_segmenter_cls(args):
+    segmenter_file = args.segmenter
+    if args.segmenter is None:
+        logger.error(
+            "You have to specify an agent file by --segmenter")
+        sys.exit(1)
+
+    segmenter_file = os.path.abspath(segmenter_file)
+
+    new_class_names_in_file = new_class_names(segmenter_file)
+
+    segmenter_name = None
+    if ":" in segmenter_file:
+        segmenter_name = segmenter_file.split(":")[1:]
+        segmenter_file = os.path.abspath(segmenter_file.split(":")[0])
+        if len(segmenter_name) > 1:
+            logger.error(
+                f"Only one segmenter name at one time, {len(segmenter_name)} are provided. {' '.join(segmenter_name)}"
+            )
+        sys.exit(1)
+        segmenter_name = segmenter_name[0]
+
+        if segmenter_name not in new_class_names_in_file:
+            logger.error(
+                f"No definition found for class {segmenter_name} in {segmenter_file}"
+            )
+            sys.exit(1)
+
+        new_class_names_in_file = [segmenter_name]
+
+    spec = importlib.util.spec_from_file_location("segmenters", segmenter_file)
+    segmenter_modules = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(segmenter_modules)
+
+    segmenter_cls = []
+
+    for cls_name in new_class_names_in_file:
+        kls = getattr(segmenter_modules, cls_name)
+
+        if isinstance(kls, type) and issubclass(kls, Segmenter):
+            segmenter_cls.append(kls)
+
+    if len(segmenter_cls) == 0:
+        logger.error(f"No 'Segmenter' class found in {segmenter_file}\n")
+        sys.exit(1)
+
+    if len(segmenter_cls) > 1:
+        if segmenter_name is None:
+            logger.error(
+                f"Multiple 'Segmenter' classes found in {segmenter_file}. Please select one by {segmenter_file}:SegmenterClassName.\n")
+            sys.exit(1)
+        segmenter_cls = getattr(segmenter_modules, segmenter_name, None)
+        if segmenter_cls is None:
+            logger.error(f"{segmenter_name} not found in {segmenter_file}.\n")
+            sys.exit(1)
+    else:
+        segmenter_cls = segmenter_cls[0]
+        if segmenter_name is not None and segmenter_name != segmenter_cls.__name__:
+            logger.error(
+                f"Failed to find {segmenter_name} in {segmenter_file}. Do you mean {segmenter_cls.__name__}?\n")
+            sys.exit(1)
+
+        segmenter_name = segmenter_cls.__name__
+
+    return segmenter_name, segmenter_cls
 
 
 def check_data_type(args, agent_cls):

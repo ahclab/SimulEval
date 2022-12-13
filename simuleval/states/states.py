@@ -127,6 +127,8 @@ class BaseStates(object):
         self.client = client
         self.instance_id = instance_id
         self.status = {"read": True, "write": True}
+        if args.streaming:
+            self.status["stream_read"] = True
         self.agent = agent
         self.init_entries()
 
@@ -140,6 +142,9 @@ class BaseStates(object):
 
     def finish_hypo(self):
         return not self.status["write"]
+
+    def finish_stream(self):
+        return not self.status.get("stream_read")
 
     @property
     def source(self):
@@ -179,6 +184,7 @@ class BaseStates(object):
             or segment in [DEFAULT_EOS]
         ):
             self.status["read"] = False
+            self.status["stream_read"] = False
             # Receive an EOS from server
             if segment in [DEFAULT_EOS]:
                 return

@@ -17,7 +17,7 @@ import simuleval
 from simuleval import options
 from simuleval import READ_ACTION, WRITE_ACTION
 from simuleval.online import start_client, start_server
-from simuleval.utils.agent_finder import find_agent_cls
+from simuleval.utils.agent_finder import find_agent_cls, find_segmenter_cls
 from simuleval.utils.functional import split_list_into_chunks
 
 
@@ -102,20 +102,59 @@ def decode(args, client, result_queue, instance_ids):
     agent = agent_cls(args)
 
     # Decode
-    for instance_id in instance_ids:
-        states = agent.build_states(args, client, instance_id)
-        while not states.finish_hypo():
-            action = agent.policy(states)
-            if action == READ_ACTION:
-                states.update_source()
-            elif action == WRITE_ACTION:
-                prediction = agent.predict(states)
-                states.update_target(prediction)
-            else:
-                raise SystemExit(f"Undefined action name {action}")
-        sent_info = client.get_scores(instance_id)
-        result_queue.put(sent_info)
-        logger.debug(f"Instance {instance_id} finished, results:\n{json.dumps(sent_info, indent=4)}")
+    if not args.streaming:
+        for instance_id in instance_ids:
+            states = agent.build_states(args, client, instance_id)
+            while not states.finish_hypo():
+                action = agent.policy(states)
+                if action == READ_ACTION:
+                    states.update_source()
+                elif action == WRITE_ACTION:
+                    prediction = agent.predict(states)
+                    states.update_target(prediction)
+                else:
+                    raise SystemExit(f"Undefined action name {action}")
+            sent_info = client.get_scores(instance_id)
+            result_queue.put(sent_info)
+            logger.debug(f"Instance {instance_id} finished, results:\n{json.dumps(sent_info, indent=4)}")
+    else:
+        # Streaming translation
+        segmenter_name, segmenter_cls = find_segmenter_cls(args)
+        options.add_segmenter_args(parser, segmenter_cls)
+        args, _ = parser.parse_known_args()
+        segmenter = segmenter_cls(args)
+
+        for instance_id in instance_ids:
+            states = agent.build_states(args, client, instance_id)
+
+            while not states.finish_stream():
+                in_segment = segmenter.is_segment(states)
+                segmenter.update_history(in_segment)
+                if not in_segment:
+                    states.update_source()
+                else:
+                    segmenter.reset_status(states)
+                    while not states.finish_hypo():
+                        action = agent.policy(states)
+                        logger.info(f"Time={states.num_milliseconds()}, action={action}")
+                        if action == READ_ACTION:
+                            states.update_source()
+                            in_segment = segmenter.is_segment(states)
+                            segmenter.update_history(in_segment)
+                            if not in_segment:
+                                states.status["read"] = False
+                        elif action == WRITE_ACTION:
+                            prediction = agent.predict(states)
+                            states.update_target(prediction)
+                        else:
+                            raise SystemExit(f"Undefined action name {action}")
+                    target_segment = " ".join(states.segments.target.value)
+                    segmenter.update_target(target_segment)
+                    segmenter.reset_status(states)
+                    result_queue.put({"instance_id": instance_id, "prediction": target_segment})
+#TMP            sent_info = client.get_scores(instance_id)
+#TMP            result_queue.put(sent_info)
+#TMP            logger.debug(f"Instance {instance_id} finished, results:\n{json.dumps(sent_info, indent=4)}")
 
 
 def evaluate(args, client, server_process=None):

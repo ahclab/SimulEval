@@ -57,8 +57,15 @@ def general_parser():
                         help='Local evaluation')
     parser.add_argument('--output', type=str, default=None,
                         help='Output directory')
+    parser.add_argument('--streaming', action='store_true', default=False,
+                        help='Streaming translation')
+    parser.add_argument('--segmenter', default=None,
+                        help='Segmenter for streaming translation')
     return parser
 
 
 def add_agent_args(parser, agent_cls):
     agent_cls.add_args(parser)
+
+def add_segmenter_args(parser, segmenter_cls):
+    segmenter_cls.add_args(parser)
