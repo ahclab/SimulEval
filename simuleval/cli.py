@@ -128,20 +128,23 @@ def decode(args, client, result_queue, instance_ids):
             states = agent.build_states(args, client, instance_id)
 
             while not states.finish_stream():
-                in_segment = segmenter.is_segment(states)
-                segmenter.update_history(in_segment)
-                if not in_segment:
+                states.in_segment = segmenter.is_segment(states)
+                logger.debug(f"Time={states.num_milliseconds()}, in_segment={states.in_segment}")
+                segmenter.update_history(states.in_segment)
+                if not states.in_segment:
                     states.update_source()
+                    segmenter.reset_status(states)
                 else:
                     segmenter.reset_status(states)
                     while not states.finish_hypo():
                         action = agent.policy(states)
-                        logger.info(f"Time={states.num_milliseconds()}, action={action}")
+                        logger.debug(f"Time={states.num_milliseconds()}, action={action}")
                         if action == READ_ACTION:
                             states.update_source()
-                            in_segment = segmenter.is_segment(states)
-                            segmenter.update_history(in_segment)
-                            if not in_segment:
+                            states.in_segment = segmenter.is_segment(states)
+                            logger.debug(f"Time={states.num_milliseconds()}, in_segment={states.in_segment}")
+                            segmenter.update_history(states.in_segment)
+                            if not states.in_segment:
                                 states.status["read"] = False
                         elif action == WRITE_ACTION:
                             prediction = agent.predict(states)
