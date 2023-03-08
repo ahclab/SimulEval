@@ -88,6 +88,7 @@ def decode(args, client, result_queue, instance_ids):
 
     parser = options.general_parser()
     options.add_agent_args(parser, agent_cls)
+    options.add_data_args(parser)
     args, _ = parser.parse_known_args()
 
     # Data type check
