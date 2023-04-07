@@ -148,7 +148,7 @@ class SentenceLevelEvaluator(object):
         if self.output is not None:
             with open(self.output / "instances.log", "r") as f:
                 for line in f:
-                    instance = LogInstance(line.strip())
+                    instance = LogInstance(line.strip(), self.args)
                     self.instances[instance.index] = instance
 
     def build_instances_from_dataloader(self):
