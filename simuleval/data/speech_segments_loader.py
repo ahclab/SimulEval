@@ -5,19 +5,24 @@ import numpy as np
 
 class SpeechSegmentLoader:
     def __init__(self, wav_filepath: str, yaml_filepath: str) -> None:
+        """The dataloader for speech data with segmentation
+
+        Args:
+            wav_filepath (str): full path to wav file (.wav)
+            yaml_filepath (str): full path to yaml file (.yaml)
+        """
         wav_filename = wav_filepath.split("/")[-1]
         self.yaml_filepath = yaml_filepath
-        
         self.wav_data, self.sampling_rate = sf.read(wav_filepath)
         
         with open(yaml_filepath, mode="r", encoding="utf-8") as yaml_file:
-            manifests = yaml.safe_load(yaml_file)
+            full_manifests = yaml.safe_load(yaml_file)
+            self.manifests = []
+            for manifest in full_manifests:
+                if manifest["wav"] == wav_filename:
+                    self.manifests.append(manifest)
         
-        self.manifests = []
-        for manifest in manifests:
-            if manifest["wav"] == wav_filename:
-                self.manifests.append(manifest)
-        
+        # variable for iteration
         self.current_iter = 0
     
     

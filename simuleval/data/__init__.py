@@ -1,1 +1,1 @@
-from speech_segments_loader import SpeechSegmentLoader
+from .speech_segments_loader import SpeechSegmentLoader
