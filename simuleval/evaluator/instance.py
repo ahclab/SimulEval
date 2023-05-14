@@ -433,7 +433,7 @@ INSTANCE_TYPE_DICT = {
 
 
 class LogInstance:
-    def __init__(self, info: str) -> None:
+    def __init__(self, info: str, args) -> None:
         self.info = json.loads(info.strip())
         self.intervals = []
         for key, value in self.info.items():
@@ -441,9 +441,14 @@ class LogInstance:
 
         self.index = self.info["index"]
         self.reference = self.info.get("reference", "")
-        self.reference_length = len(
-            self.reference.split(" ")
-        )  # ToDo: temporary solution, make it configurable
+        if args.eval_latency_unit == "char":
+            self.reference_length = len(
+                self.reference.strip()
+            )
+        else:
+            self.reference_length = len(
+                self.reference.split(" ")
+            )  # ToDo: temporary solution, make it configurable
         self.source_length = self.info.get("source_length")  # just for testing!
         self.finish_prediction = True
         self.metrics = {}

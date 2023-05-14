@@ -18,7 +18,6 @@ from simuleval.evaluator.instance import (
     SpeechOutputInstance,
     Instance,
     LogInstance,
-    SpeechOutputInstance,
 )
 from argparse import ArgumentParser, Namespace
 from subprocess import Popen, PIPE
