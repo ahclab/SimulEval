@@ -21,7 +21,7 @@ def concat_itts_audios(
     audio_path_list:List[str],
     offset_list:List[float],
     delay:float,
-    mergin:float=0.1,
+    mergin:float=100,
 ) -> np.ndarray:
     
     assert len(audio_path_list) == len(offset_list)
@@ -32,14 +32,15 @@ def concat_itts_audios(
         audio, sampling_rate = sf.read(audio_path)
         audio_list.append(audio)
     
-    offset_lengths = [int(sampling_rate * (offset + delay)) for offset in offset_list]
-    mergin_length = int(sampling_rate * mergin)
+    offset_lengths = [int(sampling_rate * (offset + delay)/1000) for offset in offset_list]
+    mergin_length = int(sampling_rate * mergin/1000)
     
     concat_audio_list = []
     total_length = 0
+    
     for audio, offset in zip(audio_list, offset_lengths):
         if total_length < offset:
-            padding_length = total_length - offset
+            padding_length = offset - total_length
             zero_audio = np.zeros(padding_length)
             
             total_length += padding_length
