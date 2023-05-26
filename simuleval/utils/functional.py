@@ -19,26 +19,73 @@ def find_free_port():
 
 def concat_itts_audios(
     audio_path_list:List[str],
-    offset_list:List[float],
-    delay:float,
+    chunk_timestamp_list:List[List[float]],
+    chunk_duration_list: List[List[float]],
     mergin:float=100,
 ) -> np.ndarray:
     
-    assert len(audio_path_list) == len(offset_list)
+    assert len(audio_path_list) == len(chunk_timestamp_list)
+    assert len(audio_path_list) == len(chunk_duration_list)
     
+    # 音声の読み込み
     audio_list = []
     sampling_rate = -1
     for audio_path in audio_path_list:
         audio, sampling_rate = sf.read(audio_path)
         audio_list.append(audio)
     
-    offset_lengths = [int(sampling_rate * (offset + delay)/1000) for offset in offset_list]
-    mergin_length = int(sampling_rate * mergin/1000)
+    def convert_ms_to_sample(ms_duration: float):
+        return int(sampling_rate * ms_duration / 1000)
+    
+    # タイムスタンプをoffsetに変換して格納
+    sampled_chunk_offset_list = []
+    for chunk_timestamp in chunk_timestamp_list: # list in list[list]
+        sampled_chunk_offsets = []
+        for offset in chunk_timestamp: # float in list
+            sampled_chunk_offsets.append(
+                convert_ms_to_sample(offset - chunk_timestamp[0])
+            )
+        sampled_chunk_offset_list.append(sampled_chunk_offsets)
+
+    # 各セグメント内のchunkを分けるためのduration
+    sampled_chunk_duration_list = []
+    for chunk_durations in chunk_duration_list:
+        sampled_chunk_duration = [convert_ms_to_sample(duration) for duration in chunk_durations]
+        sampled_chunk_duration_list.append(sampled_chunk_duration)
+    
+    # 各セグメントを分けるためのoffset
+    sampled_segment_offset_list = [convert_ms_to_sample(timestamps[0]) for timestamps in chunk_timestamp_list]
+    # 各セグメント間のマージン
+    segment_mergin_length = convert_ms_to_sample(mergin)
+    
+    
+    for i, (audio, sampled_chunk_offsets, sampled_chunk_durations) in enumerate(zip(
+        audio_list, sampled_chunk_offset_list, sampled_chunk_duration_list,
+    )):
+        concat_audio_list = []
+        total_length = 0
+        processed_duration = 0
+        
+        for chunk_offset, chunk_duration in zip(sampled_chunk_offsets, sampled_chunk_durations):
+            if total_length < chunk_offset:
+                padding_length = chunk_offset - total_length
+                zero_audio = np.zeros(padding_length)
+                
+                total_length += padding_length
+                concat_audio_list.append(zero_audio)
+            
+            concat_audio_list.append(audio[processed_duration:processed_duration+chunk_duration])
+            total_length += chunk_duration
+            processed_duration += chunk_duration
+            
+        audio_list[i] = np.concatenate(concat_audio_list)
+    
     
     concat_audio_list = []
     total_length = 0
     
-    for audio, offset in zip(audio_list, offset_lengths):
+    for audio, offset in zip(audio_list, sampled_segment_offset_list):
+        
         if total_length < offset:
             padding_length = offset - total_length
             zero_audio = np.zeros(padding_length)
@@ -46,9 +93,9 @@ def concat_itts_audios(
             total_length += padding_length
             concat_audio_list.append(zero_audio)
         elif total_length > offset:
-            zero_audio = np.zeros(mergin_length)
+            zero_audio = np.zeros(segment_mergin_length)
             
-            total_length += mergin_length
+            total_length += segment_mergin_length
             concat_audio_list.append(zero_audio)
         
         total_length += audio.shape[0]
