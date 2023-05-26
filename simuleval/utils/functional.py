@@ -27,7 +27,7 @@ def concat_itts_audios(
     assert len(audio_path_list) == len(chunk_timestamp_list)
     assert len(audio_path_list) == len(chunk_duration_list)
     
-    # 音声の読み込み
+    # read audio data
     audio_list = []
     sampling_rate = -1
     for audio_path in audio_path_list:
@@ -37,7 +37,7 @@ def concat_itts_audios(
     def convert_ms_to_sample(ms_duration: float):
         return int(sampling_rate * ms_duration / 1000)
     
-    # タイムスタンプをoffsetに変換して格納
+    # save offset from timestamps
     sampled_chunk_offset_list = []
     for chunk_timestamp in chunk_timestamp_list: # list in list[list]
         sampled_chunk_offsets = []
@@ -47,15 +47,15 @@ def concat_itts_audios(
             )
         sampled_chunk_offset_list.append(sampled_chunk_offsets)
 
-    # 各セグメント内のchunkを分けるためのduration
+    # duration for splitting audio by chunk
     sampled_chunk_duration_list = []
     for chunk_durations in chunk_duration_list:
         sampled_chunk_duration = [convert_ms_to_sample(duration) for duration in chunk_durations]
         sampled_chunk_duration_list.append(sampled_chunk_duration)
     
-    # 各セグメントを分けるためのoffset
+    # offset for splitting audio by segment
     sampled_segment_offset_list = [convert_ms_to_sample(timestamps[0]) for timestamps in chunk_timestamp_list]
-    # 各セグメント間のマージン
+    # mergins between segments
     segment_mergin_length = convert_ms_to_sample(mergin)
     
     
