@@ -7,7 +7,10 @@
 import sys
 import logging
 from simuleval import options
-from simuleval.utils.agent import build_system_args
+from simuleval.utils.agent import (
+    build_system_args,
+    build_segmenter_system_args,
+)
 from simuleval.utils.slurm import submit_slurm_job
 from simuleval.utils.arguments import check_argument
 from simuleval.utils import EVALUATION_SYSTEM_LIST
@@ -15,6 +18,7 @@ from simuleval.evaluator import (
     build_evaluator,
     build_remote_evaluator,
     SentenceLevelEvaluator,
+    build_stream_evaluator,
 )
 from simuleval.agents.service import start_agent_service
 from simuleval.agents import GenericAgent
@@ -42,6 +46,11 @@ def main():
 
     if check_argument("slurm"):
         submit_slurm_job()
+        return
+
+    # streaming evaluation
+    if check_argument("streaming"):
+        stream_evaluate()
         return
 
     system, args = build_system_args()
@@ -93,6 +102,16 @@ def remote_evaluate():
 
     # evaluate system
     evaluator.remote_eval()
+
+
+def stream_evaluate():
+    segmenter, system, args = build_segmenter_system_args()
+    
+    # build evaluator
+    evaluator = build_stream_evaluator(args)
+
+    # evaluate system
+    evaluator(system, segmenter)
 
 
 if __name__ == "__main__":

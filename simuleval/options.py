@@ -157,6 +157,19 @@ def general_parser():
     parser.add_argument(
         "--device", type=str, default="cpu", help="Device to run the model."
     )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        default=False,
+        help="Use streaming evaluation.",
+    )
+    if parser.parse_known_args()[0].streaming:
+        parser.add_argument(
+            "--segmenter",
+            default=None,
+            required=True,
+            help="Segmenter file"
+        )
     return parser
 
 
@@ -166,3 +179,20 @@ def add_slurm_args(parser):
     )
     parser.add_argument("--slurm-job-name", default="simuleval", help="Slurm job name.")
     parser.add_argument("--slurm-time", default="10:00:00", help="Slurm partition.")
+
+
+#RMdef add_stream_args(parser):
+#RM    parser.add_argument(
+#RM        "--segmenter",
+#RM        type=str,
+#RM        choices=["fixed"],
+#RM        required=True,
+#RM        help="Segmenter to use.",
+#RM    )
+#RM    if parser.parse_known_args()[0].segmenter == "fixed":
+#RM        parser.add_argument(
+#RM            "--fixed-length",
+#RM            type=int,
+#RM            default=10000,
+#RM            help="Fixed length of segments (in ms).",
+#RM        )

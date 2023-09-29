@@ -18,6 +18,7 @@ from simuleval.agents import GenericAgent
 from simuleval.utils.arguments import cli_argument_list, check_argument
 
 EVALUATION_SYSTEM_LIST = []
+EVALUATION_SEGMENTER_LIST = []
 
 logger = logging.getLogger("simuleval.utils.agent")
 
@@ -69,6 +70,7 @@ def get_system_config(path: Union[Path, str], config_name) -> dict:
 
 def get_agent_class_from_string(class_name: str) -> GenericAgent:
     try:
+        breakpoint()
         agent_module = importlib.import_module(".".join(class_name.split(".")[:-1]))
         agent_class = getattr(agent_module, class_name.split(".")[-1])
     except Exception as e:
@@ -138,3 +140,50 @@ def build_system_args(
     args.source_type = system.source_type
     args.target_type = system.target_type
     return system, args
+
+
+def build_segmenter_system_args(
+    config_dict: Optional[dict] = None,
+) -> Tuple[GenericAgent, Namespace]:
+    parser = options.general_parser()
+    cli_arguments = cli_argument_list(config_dict)
+    options.add_evaluator_args(parser)
+    options.add_scorer_args(parser, cli_arguments)
+    options.add_slurm_args(parser)
+    options.add_dataloader_args(parser, cli_arguments)
+
+    # build segmenter
+    segmenter_file = check_argument("segmenter")
+    if segmenter_file is None:
+        raise RuntimeError("Please specify a segmenter file.")
+    import_file(segmenter_file)
+    if len(EVALUATION_SEGMENTER_LIST) == 0:
+        raise RuntimeError(
+            "Please use @segmenter_entrypoint decorator to indicate the segmenter."
+        )
+    segmenter_class = EVALUATION_SEGMENTER_LIST[0]
+    segmenter_class.add_args(parser)
+    args, _ = parser.parse_known_args(cli_argument_list(config_dict))
+    segmenter = segmenter_class.from_args(args)
+
+    logger.info(f"Segmenter class: {segmenter_class.__name__}.")
+
+    # build system
+    if check_argument("system_dir"):
+        system = build_system_from_dir(
+            check_argument("system_dir"), check_argument("system_config"), config_dict
+        )
+    else:
+        system_class = get_agent_class(config_dict)
+        system_class.add_args(parser)
+        args, _ = parser.parse_known_args(cli_argument_list(config_dict))
+        system = system_class.from_args(args)
+
+    args = parser.parse_args(cli_argument_list(config_dict))
+
+    logger.info(f"Translation system will run on device: {args.device}.")
+    system.to(args.device)
+
+    args.source_type = system.source_type
+    args.target_type = system.target_type
+    return segmenter, system, args

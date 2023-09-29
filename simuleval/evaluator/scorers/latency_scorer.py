@@ -95,6 +95,8 @@ class LatencyScorer:
             score = self.compute(ins)
             ins.metrics[self.metric_name] = score
             scores.append(score)
+        if len(scores) == 0:
+            return 0
 
         return mean(scores)
 
@@ -433,6 +435,8 @@ class ATDScorer(LatencyScorer):
                 token_to_time["tgt"].append(tgt_start_time + token_len + compute_time)
 
             scores.append(self.compute(chunk_sizes, token_to_chunk, token_to_time))
+        if len(scores) == 0:
+            return 0
 
         return mean(scores)
 

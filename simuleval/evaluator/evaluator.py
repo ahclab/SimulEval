@@ -242,3 +242,118 @@ class SentenceLevelEvaluator(object):
             quality_scorers[name] = get_scorer_class("quality", name).from_args(args)
 
         return cls(dataloader, quality_scorers, latency_scorers, args)
+
+
+class StreamingEvaluator(SentenceLevelEvaluator):
+    def __init__(
+        self,
+        dataloader: Optional[GenericDataloader],
+        quality_scorers: Dict[str, QualityScorer],
+        latency_scorers: Dict[str, LatencyScorer],
+        args: Namespace,
+    ) -> None:
+        self.dataloader = dataloader
+        self.quality_scorers = quality_scorers
+        self.latency_scorers = latency_scorers
+        self.instances = {}
+
+        self.args = args
+        self.output = Path(args.output) if args.output else None
+        self.score_only = args.score_only
+        self.source_segment_size = getattr(args, "source_segment_size", 1)
+        self.source_type = getattr(args, "source_type", None)
+        self.target_type = getattr(args, "target_type", None)
+
+        if (
+            self.source_type is None
+            and self.target_type is None
+            and self.output is not None
+        ):
+            with open(self.output / "config.yaml") as f:
+                configs = yaml.safe_load(f)
+                self.source_type = configs["source_type"]
+                self.target_type = configs["target_type"]
+
+        assert self.source_type
+        assert self.target_type
+
+        if self.output is not None:
+            os.makedirs(self.output, exist_ok=True)
+            with open(self.output / "config.yaml", "w") as f:
+                yaml.dump(
+                    {"source_type": self.source_type, "target_type": self.source_type},
+                    f,
+                    default_flow_style=False,
+                )
+
+        self.instance_class = INSTANCE_TYPE_DICT[
+            f"streamspeech-{self.target_type}"
+        ]
+        self.start_index = getattr(args, "start_index", 0)
+        self.end_index = getattr(args, "end_index", -1)
+
+        if not self.score_only:
+            if self.output:
+                if (
+                    self.args.continue_unfinished
+                    and (self.output / "instances.log").exists()
+                ):
+                    with open(self.output / "instances.log", "r") as f:
+                        line = None
+                        for line in f:  # noqa
+                            pass
+                        if line is not None:
+                            last_info = json.loads(line.strip())
+                            self.start_index = last_info["index"] + 1
+                else:
+                    self.output.mkdir(exist_ok=True, parents=True)
+                    open(self.output / "instances.log", "w").close()
+            if self.end_index < 0:
+                assert self.dataloader is not None
+                self.end_index = len(self.dataloader)
+
+        self.build_instances()
+
+        if not self.args.no_progress_bar and not self.score_only:
+            self.instance_iterator = tqdm(
+                self.instances.values(),
+                initial=self.start_index,
+                total=len(self.instances.values()),
+            )
+        else:
+            self.instance_iterator = self.instances.values()
+
+
+    def __call__(self, system, segmenter):
+        logger.info("Start streaming evaluation.")
+        # Each instance is an unsegmented audio file
+        for instance in self.instance_iterator:
+            system.reset()
+            segmenter.set_instance(instance)
+            while not instance.is_finish_source:
+                is_start, start_offset, is_end, end_offset = segmenter.segment()
+                input_segment = instance.send_source(
+                    self.source_segment_size,
+                    is_start, start_offset, is_end, end_offset,
+                )
+                if input_segment:
+#                    print(input_segment.index)
+                    output_segment = system.pushpop(input_segment)
+                    instance.receive_prediction(output_segment)
+                    if is_end:
+                        self.write_log(instance)
+                        system.reset()
+                        instance.reset()
+            logger.info(f"Finish instance {instance.index}")
+            logger.info(f"Number of segments: {instance.num_sent_segments}")
+
+
+#            while not instance.finish_prediction:
+#                input_segment = instance.send_source(self.source_segment_size)
+#                output_segment = system.pushpop(input_segment)
+#                instance.receive_prediction(output_segment)
+#                self.write_log(instance)
+                
+
+        self.dump_results()
+        self.dump_metrics()

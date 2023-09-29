@@ -56,7 +56,7 @@ class Instance(object):
         self.elapsed = []
         self.prediction_list = []
         self.delays = []
-        self.start_time = None
+        self.start_time =  None
         self.metrics = {}
 
     def step_to_elapsed(self, *args):
@@ -315,6 +315,128 @@ class SpeechInputInstance(Instance):
         return self.len_sample_to_ms(step) + (current_time - self.start_time) * 1000
 
 
+class StreamSpeechInputInstance(SpeechInputInstance):
+    def __init__(
+        self,
+        index: int,
+        dataloader: Optional[SpeechToTextDataloader],
+        args: Optional[Namespace],
+    ):
+        super().__init__(index, dataloader, args)
+        self.step = 0
+        self.num_samples = math.ceil(
+            self.args.source_segment_size / 1000 * self.sample_rate
+        )
+
+        self.num_sent_segments = 0
+        self.within_sent_segment = False
+
+    @property
+    def current_samples(self):
+        if self.step >= len(self.samples):
+            return []
+        else:
+            if self.step + self.num_samples >= len(self.samples):
+                # Pad zeros if the requested number of samples
+                # are more than available samples.
+                samples = self.samples[self.step :]
+            else:
+                samples = self.samples[self.step : self.step + self.num_samples]
+#RM            self.step = min(self.step + self.num_samples, len(self.samples))
+            return samples
+
+    def send_source(
+        self,
+        segment_size,
+        is_start,
+        start_offset,
+        is_end,
+        end_offset,
+    ):
+        if self.step == 0:
+            self.start_time = time.time()
+        assert segment_size >= 1, "instance size has to larger than 1 ms"
+
+#RM        num_samples = math.ceil(segment_size / 1000 * self.sample_rate)
+
+        if self.current_samples == []:
+            # Finish reading this audio
+            segment = EmptySegment(
+                index=self.len_sample_to_ms(self.step),
+                finished=True,
+            )
+            return segment
+        else:
+            start_point = 0
+            end_point = len(self.current_samples)
+
+            # check segment status (six cases)
+            if self.within_sent_segment:
+                if is_end:
+                    # case 1: self.within_sent_segment and is_end
+                    end_point = end_point - end_offset
+                    self.within_sent_segment = False
+                    self.num_sent_segments += 1
+                    if is_start:
+                        # case 2: case 1 and is_start (special case A)
+                        self.within_sent_segment = True
+                        next_start_buffer = 0  # [TODO] concat to next segment
+                else:
+                    # case 3: self.within_sent_segment and not is_end
+                    pass
+            else:
+                if is_start:
+                    # case 4: not self.within_sent_segment and is_start
+                    start_point = start_point + start_offset
+                    self.within_sent_segment = True
+                    if is_end:
+                        # case 5: case 4 and is_end (special case B)
+                        self.within_sent_segment = False
+                        end_point = end_point - end_offset
+                        self.num_sent_segments += 1
+                else:
+                    # case 6: not self.within_sent_segment and not is_start
+                    segment = None
+                
+            segment = SpeechSegment(
+                index=self.len_sample_to_ms(self.step),
+                content=self.current_samples[start_point:end_point],
+                sample_rate=self.audio_info.samplerate,
+                finished=is_end,
+            )
+            #self.step += self.num_samples
+            self.step = min(self.step + self.num_samples, len(self.samples))
+            return segment
+
+#RM        if self.step < len(self.samples):
+#RM            if self.step + num_samples >= len(self.samples):
+#RM                # Pad zeros if the requested number of samples
+#RM                # are more than available samples.
+#RM                samples = self.samples[self.step :]  # noqa E203
+#RM                is_finished = True
+#RM            else:
+#RM                samples = self.samples[self.step : self.step + num_samples]  # noqa E203
+#RM                is_finished = False
+#RM
+#RM            self.step = min(self.step + num_samples, len(self.samples))
+#RM
+#RM            segment = SpeechSegment(
+#RM                index=self.len_sample_to_ms(self.step),
+#RM                content=samples,
+#RM                sample_rate=self.audio_info.samplerate,
+#RM                finished=is_finished,
+#RM            )
+#RM
+#RM        else:
+#RM            # Finish reading this audio
+#RM            segment = EmptySegment(
+#RM                index=self.len_sample_to_ms(self.step),
+#RM                finished=True,
+#RM            )
+
+        return segment
+
+
 class SpeechOutputInstance(Instance):
     def __init__(self, index, dataloader, args):
         super().__init__(index, dataloader, args)
@@ -425,10 +547,25 @@ class SpeechToSpeechInstance(SpeechInputInstance, SpeechOutputInstance):
     pass
 
 
+class StreamSpeechToTextInstance(StreamSpeechInputInstance, TextOutputInstance):
+    def reset(self):
+        self.elapsed = []
+        self.prediction_list = []
+        self.delays = []
+        self.start_time =  None
+        self.metrics = {}
+
+
+class StreamSpeechToSpeechInstance(StreamSpeechInputInstance, TextOutputInstance):
+    pass
+
+
 INSTANCE_TYPE_DICT = {
     "speech-text": SpeechToTextInstance,
     "text-text": TextToTextInstance,
     "speech-speech": SpeechToSpeechInstance,
+    "streamspeech-text": StreamSpeechToTextInstance,
+    "streamspeech-speech": StreamSpeechToSpeechInstance,
 }
 
 
