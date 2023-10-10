@@ -5,11 +5,14 @@
 # LICENSE file in the root directory of this source tree.
 
 from __future__ import annotations
+
+from argparse import Namespace
 from pathlib import Path
 from typing import List, Union
-from .dataloader import GenericDataloader
+
 from simuleval.data.dataloader import register_dataloader
-from argparse import Namespace
+
+from .dataloader import GenericDataloader
 
 try:
     import soundfile

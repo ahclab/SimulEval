@@ -4,23 +4,24 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import pandas
-import os
+import json
+import logging
 import numbers
+import os
 from argparse import Namespace
+from pathlib import Path
 from typing import Dict, Generator, Optional
+
+import pandas
+import yaml
+from simuleval.data.dataloader import GenericDataloader, build_dataloader
+from simuleval.data.segments import EmptySegment
+from tqdm import tqdm
+
+from .instance import INSTANCE_TYPE_DICT, LogInstance
 from .scorers import get_scorer_class
 from .scorers.latency_scorer import LatencyScorer
 from .scorers.quality_scorer import QualityScorer
-
-from .instance import INSTANCE_TYPE_DICT, LogInstance
-import yaml
-import logging
-import json
-from tqdm import tqdm
-from pathlib import Path
-from simuleval.data.dataloader import GenericDataloader, build_dataloader
-
 
 logger = logging.getLogger("simuleval.sentence_level_evaluator")
 
@@ -286,9 +287,7 @@ class StreamingEvaluator(SentenceLevelEvaluator):
                     default_flow_style=False,
                 )
 
-        self.instance_class = INSTANCE_TYPE_DICT[
-            f"streamspeech-{self.target_type}"
-        ]
+        self.instance_class = INSTANCE_TYPE_DICT[f"streamspeech-{self.target_type}"]
         self.start_index = getattr(args, "start_index", 0)
         self.end_index = getattr(args, "end_index", -1)
 
@@ -323,7 +322,6 @@ class StreamingEvaluator(SentenceLevelEvaluator):
         else:
             self.instance_iterator = self.instances.values()
 
-
     def __call__(self, system, segmenter):
         logger.info("Start streaming evaluation.")
         # Each instance is an unsegmented audio file
@@ -331,29 +329,35 @@ class StreamingEvaluator(SentenceLevelEvaluator):
             system.reset()
             segmenter.set_instance(instance)
             while not instance.is_finish_source:
-                is_start, start_offset, is_end, end_offset = segmenter.segment()
+                segment_state = segmenter.segment()
                 input_segment = instance.send_source(
                     self.source_segment_size,
-                    is_start, start_offset, is_end, end_offset,
+                    segment_state["is_start"],
+                    segment_state["start_offset"],
+                    segment_state["is_end"],
+                    segment_state["end_offset"],
                 )
-                if input_segment:
-#                    print(input_segment.index)
+                if not isinstance(input_segment, EmptySegment):
+                    #                    print(input_segment.index)
                     output_segment = system.pushpop(input_segment)
                     instance.receive_prediction(output_segment)
-                    if is_end:
+                    if segment_state["is_end"]:
+                        self.write_log(instance)
+                        system.reset()
+                        instance.reset()
+                else:
+                    if segment_state["is_end"]:
                         self.write_log(instance)
                         system.reset()
                         instance.reset()
             logger.info(f"Finish instance {instance.index}")
             logger.info(f"Number of segments: {instance.num_sent_segments}")
 
-
-#            while not instance.finish_prediction:
-#                input_segment = instance.send_source(self.source_segment_size)
-#                output_segment = system.pushpop(input_segment)
-#                instance.receive_prediction(output_segment)
-#                self.write_log(instance)
-                
+        #            while not instance.finish_prediction:
+        #                input_segment = instance.send_source(self.source_segment_size)
+        #                output_segment = system.pushpop(input_segment)
+        #                instance.receive_prediction(output_segment)
+        #                self.write_log(instance)
 
         self.dump_results()
         self.dump_metrics()

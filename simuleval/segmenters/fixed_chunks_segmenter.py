@@ -1,12 +1,12 @@
-from argparse import Namespace, ArgumentParser
-from typing import Optional, Tuple
-from simuleval.data.segments import SpeechSegment, TextSegment
-from simuleval.utils import segmenter_entrypoint
+from argparse import ArgumentParser
+from typing import Tuple
+
 from simuleval.segmenters import GenericSegmenter
+from simuleval.utils import segmenter_entrypoint
+
 
 @segmenter_entrypoint
 class FixedChunksSegmenter(GenericSegmenter):
-
     def __init__(self, args=None):
         super().__init__(args)
 
@@ -23,7 +23,12 @@ class FixedChunksSegmenter(GenericSegmenter):
         )
 
     def segment(self):
-        is_start, start_offset, is_end, end_offset = False, 0, False, 0
+        is_start, start_offset, is_end, end_offset = (
+            False,
+            0,
+            False,
+            len(self.instance.current_samples),
+        )
 
         self.num_chunks += 1
         if self.num_chunks == 1:
@@ -36,12 +41,21 @@ class FixedChunksSegmenter(GenericSegmenter):
         else:
             is_start = False
             is_end = False
-#        if len(self.instance.current_samples) == 0:
+        # if len(self.instance.current_samples) == 0:
         if self.instance.is_finish_source:
             is_end = True
 
-#        print(f"num_chunks: {self.num_chunks}, is_start: {is_start}, start_offset: {start_offset}, is_end: {is_end}, end_offset: {end_offset}")
-        return is_start, start_offset, is_end, end_offset
+        # print(
+        #    f"num_chunks: {self.num_chunks}, "
+        #    f"is_start: {is_start}, start_offset: {start_offset}, "
+        #    f"is_end: {is_end}, end_offset: {end_offset}"
+        # )
+        return {
+            "is_start": is_start,
+            "start_offset": start_offset,
+            "is_end": is_end,
+            "end_offset": end_offset,
+        }
 
     def check_start(self, current_samples) -> Tuple[bool, int]:
         """

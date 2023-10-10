@@ -1,7 +1,6 @@
-from argparse import Namespace, ArgumentParser
+from argparse import ArgumentParser, Namespace
 from typing import Optional, Tuple
-from simuleval.data.segments import SpeechSegment, TextSegment
-from simuleval.utils import segmenter_entrypoint
+
 from simuleval.evaluator.instance import Instance
 
 
@@ -11,6 +10,8 @@ class GenericSegmenter:
     """
 
     def __init__(self, args: Optional[Namespace] = None) -> None:
+        self.args = args
+
         self.stream_history = []
         self.translations = []
 
