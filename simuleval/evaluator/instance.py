@@ -462,11 +462,6 @@ class StreamSpeechInputInstance(SpeechInputInstance):
                 self.chunk_prefix = self.next_chunk_prefix
                 self.next_chunk_prefix = []
 
-            # Ad-hoc: pad zeros if the length of content is less than 1600 (100ms)
-            if len(content) < 1600:
-                # pad zeros if the length of content is less than 1600
-                content = content + [0.0] * (1600 - len(content))
-
             segment = SpeechSegment(
                 index=self.len_sample_to_ms(self.step),
                 content=content,

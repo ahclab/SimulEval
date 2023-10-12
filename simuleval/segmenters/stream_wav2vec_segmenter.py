@@ -87,6 +87,8 @@ def detect_start_end(
     segments: List[Tuple[int, int]],
     chunk_len: int,
     within_sent_segment: bool,
+    min_segment_length_outframes: int = 0,
+    current_segment_length_outframes: int = 0,
 ) -> dict:
     """Detect start and end of segments.
 
@@ -97,6 +99,8 @@ def detect_start_end(
             chunk length
         within_sent_segment (bool):
             whether the current state is within a sentence segment
+        min_segment_length_outframes (int, optional):
+            minimum segment length in output space. Defaults to 0.
 
     Returns:
         dict: A dictionary containing the following keys:
@@ -111,64 +115,65 @@ def detect_start_end(
     >>> within_sent_segment = False
     >>> segments = []
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'A'}
+    {'is_start': False, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'A', 'min_detected': False}
 
     >>> segments = [(1, 2), (4, 6), (7, 7)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 1, 'is_end': True, 'end_offset': 7, 'case': "A'"}
+    {'is_start': True, 'start_offset': 1, 'is_end': True, 'end_offset': 7, 'case': "A'", 'min_detected': False}
 
     >>> segments = [(2, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 2, 'is_end': False, 'end_offset': 0, 'case': 'C'}
+    {'is_start': True, 'start_offset': 2, 'is_end': False, 'end_offset': 0, 'case': 'C', 'min_detected': False}
 
     >>> segments = [(2, 3), (4,7), (8, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 2, 'is_end': False, 'end_offset': 0, 'case': "C'"}
+    {'is_start': True, 'start_offset': 2, 'is_end': False, 'end_offset': 0, 'case': "C'", 'min_detected': False}
 
     >>> segments = [(0, 2), (4, 6), (7, 7)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "A' (edge case)"}
+    {'is_start': True, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "A' (edge case)", 'min_detected': False}
 
     >>> segments = [(0, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'C (edge case)'}
+    {'is_start': True, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'C (edge case)', 'min_detected': False}
 
     >>> segments = [(0, 3), (4,7), (8, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': "C' (edge case)"}
+    {'is_start': True, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': "C' (edge case)", 'min_detected': False}
 
     >>> within_sent_segment = True
     >>> segments = [(0, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'B'}
+    {'is_start': False, 'start_offset': 0, 'is_end': False, 'end_offset': 0, 'case': 'B', 'min_detected': False}
 
     >>> segments = [(0, 3), (4,7), (8, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 4, 'is_end': True, 'end_offset': 3, 'case': "B'"}
+    {'is_start': True, 'start_offset': 4, 'is_end': True, 'end_offset': 3, 'case': "B'", 'min_detected': False}
 
     >>> segments = [(0, 7)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': 'D'}
+    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': 'D', 'min_detected': False}
 
     >>> segments = [(0, 2), (4, 6), (7, 7)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "D'"}
+    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "D'", 'min_detected': False}
 
     >>> segments = [(2, 3), (4,7), (8, 9)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': True, 'start_offset': 2, 'is_end': True, 'end_offset': 0, 'case': "B' (edge case)"}
+    {'is_start': True, 'start_offset': 2, 'is_end': True, 'end_offset': 0, 'case': "B' (edge case)", 'min_detected': False}
 
     >>> segments = []
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 0, 'case': 'D (edge case)'}
+    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 0, 'case': 'D (edge case)', 'min_detected': False}
 
     >>> segments = [(1, 2), (4, 6), (7, 7)]
     >>> detect_start_end(segments, chunk_len, within_sent_segment)
-    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "D' (edge case)"}
+    {'is_start': False, 'start_offset': 0, 'is_end': True, 'end_offset': 7, 'case': "D' (edge case)", 'min_detected': False}
 
     """
     start_offset, end_offset = 0, 0
     case = ""  # for testing
+    min_detected = False
 
     # case B, B', D, D'
     if within_sent_segment:
@@ -271,12 +276,29 @@ def detect_start_end(
                     start_offset = 0
                     end_offset = segments[-1][1]
 
+    # ignore segments shorter than min_segment_length_outframes
+    if case in ["B'", "D", "D'"]:
+        if current_segment_length_outframes + end_offset < min_segment_length_outframes:
+            # breakpoint()
+            is_end = False
+            end_offset = 0
+            is_start = False
+            start_offset = 0
+            min_detected = True
+    if case in ["A'"]:
+        if end_offset - start_offset < min_segment_length_outframes:
+            # breakpoint()
+            is_end = False
+            end_offset = 0
+            min_detected = True
+
     return {
         "is_start": is_start,
         "start_offset": start_offset,
         "is_end": is_end,
         "end_offset": end_offset,
         "case": case,
+        "min_detected": min_detected,
     }
 
 
@@ -288,6 +310,11 @@ class StreamWav2VecSegmenter(GenericSegmenter):
         self.num_chunks = 0
         self.segment_history = None  # [past samples in current segment]
         self.chunk_history = []  # [[chunk1], [chunk2], ...]
+
+        self.min_segment_length_outframes = self._secs_to_outframes(
+            self.args.min_segment_length
+        )
+        self.current_segment_length_outframes = 0
 
         self.device = (
             torch.device("cuda:0")
@@ -348,6 +375,12 @@ class StreamWav2VecSegmenter(GenericSegmenter):
                 default=3,
                 help="Number of chunks to use as context",
             )
+        parser.add_argument(
+            "--min-segment-length",
+            type=float,
+            default=0.2,
+            help="Minimum segment length (in seconds))",
+        )
 
     def reset(self):
         self.num_chunks = 0
@@ -387,6 +420,10 @@ class StreamWav2VecSegmenter(GenericSegmenter):
     def _outframes_to_inframes(self, x):
         # from output space to input space
         return np.round(x * self.in_trg_ratio).astype(int)
+
+    def _secs_to_outframes(self, x):
+        # from seconds to output space
+        return np.round(x * TARGET_SAMPLE_RATE).astype(int)
 
     def inference(self, audio: torch.Tensor, normalize_audio: bool) -> torch.Tensor:
         """Inference segmentation model.
@@ -444,8 +481,8 @@ class StreamWav2VecSegmenter(GenericSegmenter):
                 if size1 < size2:
                     out_mask = out_mask[:, :-1]
                 else:
-                    wav2vec_hidden = wav2vec_hidden[:, :-1, :]
-
+                    # wav2vec_hidden = wav2vec_hidden[:, :-1, :]
+                    wav2vec_hidden = wav2vec_hidden[:, : out_mask.size(1), :]
             logits = self.model.seg_model(wav2vec_hidden, out_mask)
             probs = torch.sigmoid(logits)
             probs = probs.detach().cpu().numpy()
@@ -453,6 +490,13 @@ class StreamWav2VecSegmenter(GenericSegmenter):
         return probs
 
     def segment(self):
+        segment_state = {
+            "is_start": False,
+            "start_offset": 0,
+            "is_end": False,
+            "end_offset": 0,
+        }
+
         audio = self.convert_samples_list_to_tensor(self.instance.current_samples)
 
         # add context to audio
@@ -466,6 +510,12 @@ class StreamWav2VecSegmenter(GenericSegmenter):
         else:
             audio_with_context = audio
 
+        # Ad-hoc: ignore short audio
+        # >> self.inference(normalize_audio=True, audio=audio_with_context[:, :399])
+        # RuntimeError: Calculated padded input size per channel: (1). Kernel size: (2).
+        # Kernel size can't be greater than actual input size
+        if audio_with_context.size(1) < 400:
+            return segment_state
         probs = self.inference(audio_with_context, self.args.normalize_audio)
 
         # remove context from probs
@@ -480,8 +530,13 @@ class StreamWav2VecSegmenter(GenericSegmenter):
 
         # detect start and end of segments
         segment_state = detect_start_end(
-            segments_in_chunk, len(probs[0]), self.instance.within_sent_segment
+            segments_in_chunk,
+            len(probs[0]),
+            self.instance.within_sent_segment,
+            self.min_segment_length_outframes,
+            self.current_segment_length_outframes,
         )
+        start_offset_outframes = segment_state["start_offset"]
 
         # convert start and end offsets from output space to input space
         segment_state["start_offset"] = self._outframes_to_inframes(
@@ -491,7 +546,7 @@ class StreamWav2VecSegmenter(GenericSegmenter):
             segment_state["end_offset"]
         )
 
-        # update input history
+        # update input history and current_segment_length_outframes
         if self.args.context_type == "segment":
             # case B', C, C'
             if (
@@ -499,12 +554,17 @@ class StreamWav2VecSegmenter(GenericSegmenter):
                 and not segment_state["end_offset"] > segment_state["start_offset"]
             ):
                 self.segment_history = audio[:, segment_state["start_offset"] :]
+                self.current_segment_length_outframes = len(
+                    probs[0][start_offset_outframes:]
+                )
             # case B
             elif self.instance.within_sent_segment and not segment_state["is_end"]:
                 self.segment_history = torch.cat([self.segment_history, audio], dim=1)
+                self.current_segment_length_outframes += len(probs[0])
             # case A, A', D, D'
             else:
                 self.segment_history = None
+                self.current_segment_length_outframes = 0
         elif self.args.context_type == "fixed-chunk":
             raise NotImplementedError
 
