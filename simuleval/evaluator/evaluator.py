@@ -337,19 +337,15 @@ class StreamingEvaluator(SentenceLevelEvaluator):
                     segment_state["is_end"],
                     segment_state["end_offset"],
                 )
+
                 if not isinstance(input_segment, EmptySegment):
                     #                    print(input_segment.index)
                     output_segment = system.pushpop(input_segment)
                     instance.receive_prediction(output_segment)
-                    if segment_state["is_end"]:
-                        self.write_log(instance)
-                        system.reset()
-                        instance.reset()
-                else:
-                    if segment_state["is_end"]:
-                        self.write_log(instance)
-                        system.reset()
-                        instance.reset()
+                if segment_state["is_end"]:
+                    self.write_log(instance)
+                    system.reset()
+                    instance.reset()
             logger.info(f"Finish instance {instance.index}")
             logger.info(f"Number of segments: {instance.num_sent_segments}")
 

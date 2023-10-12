@@ -462,12 +462,19 @@ class StreamSpeechInputInstance(SpeechInputInstance):
                 self.chunk_prefix = self.next_chunk_prefix
                 self.next_chunk_prefix = []
 
-            segment = SpeechSegment(
-                index=self.len_sample_to_ms(self.step),
-                content=content,
-                sample_rate=self.audio_info.samplerate,
-                finished=is_end,
-            )
+            # Ad-hoc: ignore short audio
+            if len(content) < 400:
+                segment = EmptySegment(
+                    index=self.len_sample_to_ms(self.step),
+                    finished=is_end,
+                )
+            else:
+                segment = SpeechSegment(
+                    index=self.len_sample_to_ms(self.step),
+                    content=content,
+                    sample_rate=self.audio_info.samplerate,
+                    finished=is_end,
+                )
             self.step = min(self.step + self.num_samples, len(self.samples))
             return segment
 
