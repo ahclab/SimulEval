@@ -69,6 +69,21 @@ class AgentPipeline(GenericAgent):
             last_states = states[-1]
 
         return self.module_list[-1].pop(last_states)
+    
+    def pushpop_all(
+        self, segment: Segment, states: Optional[List[Optional[AgentStates]]] = None
+    ) -> List[Segment]:
+        if states is None:
+            states = [None for _ in self.module_list]
+        else:
+            assert len(states) == len(self.module_list)
+        
+        output_segments = []
+        for index, module in enumerate(self.module_list):
+            segment = module.pushpop(segment, states[index])
+            output_segments.append(segment)
+        
+        return output_segments
 
     @classmethod
     def add_args(cls, parser) -> None:
