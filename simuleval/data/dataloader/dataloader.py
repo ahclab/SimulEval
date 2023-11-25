@@ -4,8 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+from argparse import ArgumentParser, Namespace
 from typing import Any, Dict, List, Union
-from argparse import Namespace, ArgumentParser
 
 SUPPORTED_MEDIUM = ["text", "speech"]
 SUPPORTED_SOURCE_MEDIUM = ["text", "speech", "streamspeech"]

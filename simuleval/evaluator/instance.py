@@ -45,6 +45,7 @@ class Instance(object):
         if self.dataloader is not None:
             self.source = self.dataloader[self.index]["source"]
             self.reference = self.dataloader[self.index]["target"]
+            self.source_wav_path = self.dataloader.source_list[self.index]
         self.reset()
         if args is not None:
             self.args = args
